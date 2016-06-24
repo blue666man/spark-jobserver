@@ -27,8 +27,8 @@ class JobSqlDAOSpec extends JobSqlDAOSpecBase with TestJarFinder with FunSpecLik
   // jar test data
   val jarInfo: JarInfo = genJarInfo(false, false)
   val jarBytes: Array[Byte] = Files.toByteArray(testJar)
-  var jarFile: File = new File(config.getString("spark.jobserver.sqldao.rootdir"),
-                               jarInfo.appName + "-" + jarInfo.uploadTime + ".jar")
+  var jarFile: File = new File(config.getString("spark.jobserver.sqldao.reldir"),
+                               jarInfo.appName + "-" + jarInfo.uploadTime.toString("yyyy-MM-dd-hh.mm.ss.S") + ".jar")
 
   // jobInfo test data
   val jobInfoNoEndNoErr:JobInfo = genJobInfo(jarInfo, false, false, false)

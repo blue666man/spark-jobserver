@@ -29,17 +29,21 @@ class JobSqlDAO(config: Config) extends JobDAO {
   private val logger = LoggerFactory.getLogger(getClass)
 
   // NOTE: below is only needed for H2 drivers
-  private val rootDir = config.getString("spark.jobserver.sqldao.rootdir")
-  private val rootDirFile = new File(rootDir)
-  logger.info("rootDir is " + rootDirFile.getAbsolutePath)
+  private val reldir = config.getString("spark.jobserver.sqldao.reldir")
+  private val reldirFile = new File(reldir)
+  logger.info("reldir is " + reldirFile.getAbsolutePath)
 
   // Definition of the tables
   //scalastyle:off
   class Jars(tag: Tag) extends Table[(Int, String, Timestamp, Array[Byte])](tag, "JARS") {
     def jarId = column[Int]("JAR_ID", O.PrimaryKey, O.AutoInc)
+
     def appName = column[String]("APP_NAME")
+
     def uploadTime = column[Timestamp]("UPLOAD_TIME")
+
     def jar = column[Array[Byte]]("JAR")
+
     def * = (jarId, appName, uploadTime, jar)
   }
 
@@ -50,13 +54,20 @@ class JobSqlDAO(config: Config) extends JobDAO {
   class Jobs(tag: Tag) extends Table[(String, String, Int, String, Timestamp,
     Option[Timestamp], Option[String])](tag, "JOBS") {
     def jobId = column[String]("JOB_ID", O.PrimaryKey)
+
     def contextName = column[String]("CONTEXT_NAME")
+
     def jarId = column[Int]("JAR_ID")
+
     // FK to JARS table
     def classPath = column[String]("CLASSPATH")
+
     def startTime = column[Timestamp]("START_TIME")
+
     def endTime = column[Option[Timestamp]]("END_TIME")
+
     def error = column[Option[String]]("ERROR")
+
     def * = (jobId, contextName, jarId, classPath, startTime, endTime, error)
   }
 
@@ -64,7 +75,9 @@ class JobSqlDAO(config: Config) extends JobDAO {
 
   class Configs(tag: Tag) extends Table[(String, String)](tag, "CONFIGS") {
     def jobId = column[String]("JOB_ID", O.PrimaryKey)
+
     def jobConfig = column[String]("JOB_CONFIG")
+
     def * = (jobId, jobConfig)
   }
 
@@ -105,9 +118,9 @@ class JobSqlDAO(config: Config) extends JobDAO {
 
   private def init() {
     // Create the data directory if it doesn't exist
-    if (!rootDirFile.exists()) {
-      if (!rootDirFile.mkdirs()) {
-        throw new RuntimeException("Could not create directory " + rootDir)
+    if (!reldirFile.exists()) {
+      if (!reldirFile.mkdirs()) {
+        throw new RuntimeException("Could not create directory " + reldir)
       }
     }
 
@@ -144,11 +157,11 @@ class JobSqlDAO(config: Config) extends JobDAO {
 
   // Insert JarInfo and its jar into db and return the primary key associated with that row
   private def insertJarInfo(jarInfo: JarInfo, jarBytes: Array[Byte]): Future[Int] = {
-    db.run(jars.map(j => j.*) += (-1, jarInfo.appName, convertDateJodaToSql(jarInfo.uploadTime), jarBytes))
+    db.run(jars.map(j => j.*) +=(-1, jarInfo.appName, convertDateJodaToSql(jarInfo.uploadTime), jarBytes))
   }
 
   override def retrieveJarFile(appName: String, uploadTime: DateTime): String = {
-    val jarFile = new File(rootDir, createJarName(appName, uploadTime) + ".jar")
+    val jarFile = new File(reldir, createJarName(appName, uploadTime) + ".jar")
     if (!jarFile.exists()) {
       fetchAndCacheJarFile(appName, uploadTime)
     }
@@ -180,7 +193,7 @@ class JobSqlDAO(config: Config) extends JobDAO {
 
   // Cache the jar file into local file system.
   private def cacheJar(appName: String, uploadTime: DateTime, jarBytes: Array[Byte]) {
-    val outFile = new File(rootDir, createJarName(appName, uploadTime) + ".jar")
+    val outFile = new File(reldir, createJarName(appName, uploadTime) + ".jar")
     val bos = new BufferedOutputStream(new FileOutputStream(outFile))
     try {
       logger.debug("Writing {} bytes to file {}", jarBytes.length, outFile.getPath)
@@ -191,7 +204,9 @@ class JobSqlDAO(config: Config) extends JobDAO {
     }
   }
 
-  private def createJarName(appName: String, uploadTime: DateTime): String = appName + "-" + uploadTime
+  private def createJarName(appName: String, uploadTime: DateTime): String = {
+    appName + "-" + uploadTime.toString("yyyy-MM-dd-hh.mm.ss.S")
+  }
 
   // Convert from joda DateTime to java.sql.Timestamp
   private def convertDateJodaToSql(dateTime: DateTime): Timestamp = new Timestamp(dateTime.getMillis)
